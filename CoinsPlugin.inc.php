@@ -57,77 +57,61 @@ class CoinsPlugin extends GenericPlugin {
 
 			// Ensure that the callback is being called from a page COinS should be embedded in.
 			if (!in_array($request->getRequestedPage() . '/' . $request->getRequestedOp(), array(
-				'article/view',
+				'catalog/book',
 			))) return false;
 
 			$smarty =& $params[1];
 			$output =& $params[2];
 			$templateMgr =& TemplateManager::getManager($request);
 
-			$article = $templateMgr->get_template_vars('article');
-			$journal = $templateMgr->get_template_vars('currentJournal');
-			$issue = $templateMgr->get_template_vars('issue');
-			$publication = $article->getCurrentPublication();
+			// monograph metadata
+			$publication = $templateMgr->getTemplateVars('publication');
+			$locale = $publication->getData('locale');
+			$authors = $publication->getData('authors');
+			$firstAuthor = $authors[0];
+			$datePublished = $publication->getData('datePublished');
+			$publicationTitle = $publication->getData('title');
 
+			// press metadata
+			$press = $templateMgr->getTemplateVars('currentPress');
+			$publisher = $press->getLocalizedName();
+			$place = $press->getSetting('location');
+
+			// series metadata
+			$series = $templateMgr->getTemplateVars('series');
+			$seriesTitle = $series->getLocalizedFullTitle();
+			//$publication ->getSeriesPosition();
+
+			// put values in array
 			$vars = array(
 				array('ctx_ver', 'Z39.88-2004'),
-				array('rft_id', $request->url(null, 'article', 'view', $article->getId())),
-				array('rft_val_fmt', 'info:ofi/fmt:kev:mtx:journal'),
-				array('rft.language', $article->getLocale()),
-				array('rft.genre', 'article'),
-				array('rft.title', $journal->getLocalizedName()),
-				array('rft.jtitle', $journal->getLocalizedName()),
-				array('rft.atitle', $article->getFullTitle($article->getLocale())),
-				array('rft.artnum', $article->getBestArticleId()),
-				array('rft.stitle', $journal->getLocalizedSetting('abbreviation')),
-				array('rft.volume', $issue->getVolume()),
-				array('rft.issue', $issue->getNumber()),
+				array('rft_id', $request->url(null, 'catalog', 'book', $publication->getData('submissionId'))),
+				// coins id for book
+				array('rft_val_fmt', 'info:ofi/fmt:kev:mtx:book'),
+				// genre: book
+				array('rft.genre', 'book'),
+				// booktitle
+				array('rft.btitle', $publicationTitle[$locale]),
+				array('rft.aulast', $firstAuthor->getFamilyName($locale)),
+				array('rft.aufirst', $firstAuthor->getGivenName($locale)),
+				// series
+				array('rft.series', $seriesTitle),
+				// publisher
+				array('rft.publisher', $publisher),
+				array('rft.place', $place),
+				// published date
+				array('rft.date', date('Y-m-d', strtotime($datePublished))),
+				// language
+				array('rft.language', $locale),
 			);
-
-			$authors = $publication->getData('authors');
-			if ($firstAuthor = array_shift($authors)) {
-				$vars = array_merge($vars, array(
-					array('rft.aulast', $firstAuthor->getFamilyName($article->getLocale())),
-					array('rft.aufirst', $firstAuthor->getGivenName($article->getLocale())),
-				));
-			}
-
-			$datePublished = $article->getDatePublished();
-			if (!$datePublished) {
-				$datePublished = $issue->getDatePublished();
-			}
-
-			if ($datePublished) {
-				$vars[] = array('rft.date', date('Y-m-d', strtotime($datePublished)));
-			}
-
-			foreach ($authors as $author) {
-				$vars[] = array('rft.au', $author->getFullName());
-			}
-
-			if ($doi = $article->getStoredPubId('doi')) {
-				$vars[] = array('rft_id', 'info:doi/' . $doi);
-			}
-			if ($article->getPages()) {
-				$vars[] = array('rft.pages', $article->getPages());
-			}
-			if ($journal->getSetting('printIssn')) {
-				$vars[] = array('rft.issn', $journal->getSetting('printIssn'));
-			}
-			if ($journal->getSetting('onlineIssn')) {
-				$vars[] = array('rft.eissn', $journal->getSetting('onlineIssn'));
-			}
-
 			$title = '';
 			foreach ($vars as $entries) {
 				list($name, $value) = $entries;
 				$title .= $name . '=' . urlencode($value) . '&';
 			}
 			$title = htmlentities(substr($title, 0, -1));
-
 			$output .= "<span class=\"Z3988\" title=\"$title\"></span>\n";
 		}
 		return false;
 	}
 }
-
